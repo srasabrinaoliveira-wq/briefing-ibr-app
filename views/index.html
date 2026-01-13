@@ -737,8 +737,12 @@ pre {
 
 <script>
     // ----------------------------------------------------
-    // LÓGICA DE INICIALIZAÇÃO / PROTOCOLO
+    // LÓGICA DE INICIALIZAÇÃO / PROTOCOLO (ATUALIZADA)
     // ----------------------------------------------------
+    
+    // Variável para guardar o evento que a gente achar na busca
+    let dadosEncontradosTemp = null;
+
     function iniciarNovo() {
         document.getElementById('startScreen').classList.add('hidden');
         document.getElementById('eventForm').classList.remove('hidden');
@@ -749,29 +753,88 @@ pre {
         document.getElementById('buscaProtocoloArea').classList.remove('hidden');
     }
 
-    function buscarProtocolo() {
-        const input = document.getElementById('inputProtocoloBusca').value;
+    // --- NOVA FUNÇÃO DE BUSCA (CONECTADA AO SERVIDOR) ---
+    async function buscarProtocolo() {
+        const input = document.getElementById('inputProtocoloBusca').value.toUpperCase().trim();
+        const msgArea = document.getElementById('eventoEncontradoMsg');
+        const nomeArea = document.getElementById('nomeEventoEncontrado');
+
         if(input.length < 5) {
             alert("Por favor, digite um protocolo válido.");
             return;
         }
-        document.getElementById('eventoEncontradoMsg').classList.remove('hidden');
-        document.getElementById('nomeEventoEncontrado').innerText = "CULTO DA VIRADA (Simulação)";
+
+        // Mostra que está carregando
+        msgArea.classList.remove('hidden');
+        nomeArea.innerHTML = "⏳ Buscando no sistema...";
+
+        try {
+            // AQUI É A MÁGICA: Vai buscar no seu servidor novo
+            const response = await fetch(`/api/eventos/${input}`);
+            
+            if (!response.ok) throw new Error("Não encontrado");
+            
+            const data = await response.json();
+            dadosEncontradosTemp = data; // Guarda os dados na memória
+
+            // Mostra o resultado na tela
+            nomeArea.innerHTML = `✅ <strong>${data.informacoesGerais.evento}</strong><br><small>Data: ${data.dataLocal.data} | Resp: ${data.informacoesGerais.responsavel}</small>`;
+            
+            // Mostra o botão de confirmar
+            const btnConfirmar = document.querySelector('#eventoEncontradoMsg button');
+            if(btnConfirmar) btnConfirmar.style.display = 'block';
+
+        } catch (error) {
+            nomeArea.innerHTML = `❌ <strong>Protocolo não encontrado.</strong><br><small>Verifique o código ou se o servidor reiniciou.</small>`;
+            dadosEncontradosTemp = null;
+            // Esconde o botão se der erro
+            const btnConfirmar = document.querySelector('#eventoEncontradoMsg button');
+            if(btnConfirmar) btnConfirmar.style.display = 'none';
+        }
     }
 
+    // --- NOVA FUNÇÃO DE CONFIRMAR EDIÇÃO ---
     function confirmarEdicao() {
-        const protocoloAntigo = document.getElementById('inputProtocoloBusca').value;
+        if (!dadosEncontradosTemp) {
+            alert("Nenhum evento carregado para editar.");
+            return;
+        }
+
+        const dados = dadosEncontradosTemp;
+
+        // Troca de tela
         document.getElementById('startScreen').classList.add('hidden');
         document.getElementById('eventForm').classList.remove('hidden');
+        
+        // Avisa o sistema que é uma EDIÇÃO (Update)
         document.getElementById('modoFormulario').value = 'update';
-        document.getElementById('protocoloAtual').value = protocoloAntigo;
-        document.getElementById('submitBtn').innerText = "ATUALIZAR DADOS DO EVENTO";
-        document.getElementById('nomeEvento').value = "CULTO DA VIRADA (Simulação)";
-        document.getElementById('ministerio').value = "Geral";
-        document.getElementById('responsavel').value = "Pr. João (Simulado)";
-        alert("Dados carregados com sucesso! Faça as alterações necessárias e clique em Atualizar.");
-    }
+        document.getElementById('protocoloAtual').value = dados.cabecalho.protocolo;
+        document.getElementById('submitBtn').innerText = "🔄 ATUALIZAR DADOS DO EVENTO";
 
+        // --- PREENCHE OS CAMPOS SOZINHO ---
+        document.getElementById('nomeEvento').value = dados.informacoesGerais.evento || "";
+        document.getElementById('tipoEvento').value = dados.informacoesGerais.tipo || "Outro";
+        document.getElementById('ministerio').value = dados.informacoesGerais.ministerio || "";
+        document.getElementById('responsavel').value = dados.informacoesGerais.responsavel || "";
+        
+        // Contatos
+        if(dados.informacoesGerais.contato) {
+            document.getElementById('telefone').value = dados.informacoesGerais.contato.tel || "";
+            document.getElementById('email').value = dados.informacoesGerais.contato.email || "";
+        }
+
+        // Data
+        document.getElementById('dataEvento').value = dados.dataLocal.data || "";
+        document.getElementById('horaInicio').value = dados.dataLocal.inicio || "";
+        document.getElementById('horaTermino').value = dados.dataLocal.termino || "";
+
+        // Textos longos
+        document.getElementById('objetivo').value = dados.publico.objetivo || "";
+        document.getElementById('publicoEstimado').value = dados.publico.estimativa || "";
+        document.getElementById('observacoes').value = dados.observacoes || "";
+
+        alert(`Evento "${dados.informacoesGerais.evento}" carregado! Pode editar.`);
+    }
     // ----------------------------------------------------
     // FUNÇÕES DE INTELIGÊNCIA ARTIFICIAL (GEMINI)
     // ----------------------------------------------------
